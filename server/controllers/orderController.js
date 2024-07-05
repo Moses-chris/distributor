@@ -1,12 +1,26 @@
 const Order = require('../models/Order');
 
 exports.createOrder = async (req, res) => {
+  
   try {
-    const newOrder = new Order(req.body);
-    const savedOrder = await newOrder.save();
-    res.status(201).json(savedOrder);
+    const { uuid, ...orderData } = req.body;
+    
+    // Check if an order with this UUID already exists
+    let order = await Order.findOne({ uuid });
+    
+    if (order) {
+      // Update existing order
+      Object.assign(order, orderData);
+      await order.save();
+      res.json(order);
+    } else {
+      // Create new order
+      order = new Order({ uuid, ...orderData });
+      await order.save();
+      res.status(201).json(order);
+    }
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ error: error.message });
   }
 };
 

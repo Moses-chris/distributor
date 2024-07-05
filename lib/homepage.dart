@@ -172,7 +172,7 @@ class _HomePageState extends State<HomePage> {
                 width: 300,
                 child: ElevatedButton(onPressed: (){}, 
                 child: Text('Pay with M-pesa', style: TextStyle(color: Colors.white, fontSize: 20)),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green[500]),
                 ),
               ),
               RecentOrdersComponent(

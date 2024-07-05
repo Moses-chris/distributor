@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'dart:async';
 import 'package:logging/logging.dart';
+import 'package:uuid/uuid.dart';
 import '../analytics/saleschart.dart';
 import '../analytics/itemsalechart.dart';
 import 'models/receiptpayment.dart';
@@ -43,13 +44,14 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(path, version: 4, onCreate: _createDB, onUpgrade: _onUpgrade);
+    return await openDatabase(path, version: 6, onCreate: _createDB, onUpgrade: _onUpgrade);
   }
 
   Future<void> _createDB(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE orders(
+     CREATE TABLE orders(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uuid TEXT UNIQUE,
         serverId TEXT,
         userPhone TEXT,
         bakerName TEXT,
@@ -92,19 +94,61 @@ class DatabaseHelper {
     ''');
   }
 
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 4) {
-      await db.execute('ALTER TABLE orders ADD COLUMN userPhone TEXT');
-    }
-     if (oldVersion < 6) {
-      // Add serverId column to orders table if it doesn't exist
-      var columns = await db.rawQuery('PRAGMA table_info(orders)');
-      if (!columns.any((column) => column['name'] == 'serverId')) {
-        await db.execute('ALTER TABLE orders ADD COLUMN serverId TEXT');
-      }
-    }
+ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+  if (oldVersion < 4) {
+    await db.execute('ALTER TABLE orders ADD COLUMN userPhone TEXT');
   }
-  
+  if (oldVersion < 5) {
+    await db.execute('ALTER TABLE orders ADD COLUMN serverId TEXT');
+  }
+  if (oldVersion < 6) {
+    // Create a temporary table with the new schema
+    await db.execute('''
+      CREATE TABLE orders_temp (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uuid TEXT UNIQUE,
+        serverId TEXT,
+        userPhone TEXT,
+        bakerName TEXT,
+        status TEXT,
+        deliveryDate TEXT,
+        totalAmount REAL,
+        isSynced INTEGER DEFAULT 0
+      )
+    ''');
+
+    // Copy data from the old table to the new one, generating UUIDs for existing records
+    await db.execute('''
+      INSERT INTO orders_temp (id, serverId, userPhone, bakerName, status, deliveryDate, totalAmount, isSynced, uuid)
+      SELECT 
+        id, 
+        serverId, 
+        userPhone, 
+        bakerName, 
+        status, 
+        deliveryDate, 
+        totalAmount, 
+        isSynced, 
+        lower(hex(id || randomblob(4))) || '-' || 
+        lower(hex(randomblob(2))) || '-4' || 
+        substr(lower(hex(randomblob(2))),2) || '-' || 
+        substr('89ab',abs(random()) % 4 + 1, 1) || 
+        substr(lower(hex(randomblob(2))),2) || '-' || 
+        lower(hex(randomblob(6)))
+      FROM orders
+    ''');
+
+    // Drop the old table
+    await db.execute('DROP TABLE orders');
+
+    // Rename the new table to the original name
+    await db.execute('ALTER TABLE orders_temp RENAME TO orders');
+
+    // Create an index on the uuid column for better query performance
+    await db.execute('CREATE INDEX idx_orders_uuid ON orders (uuid)');
+    }
+  } 
+ 
   Future<void> closeDatabase() async {
     final db = await instance.database;
     await db.close();
@@ -132,12 +176,25 @@ class DatabaseHelper {
   //     ..['userPhone'] = _currentUserPhone;
   //   return await db.insert('orders', orderMap);
   // }
-   Future<int> insertOrder(Order order) async {
-    final db = await database;
-    final orderMap = order.toMap()
-      ..['userPhone'] = _currentUserPhone;
-    return await db.insert('orders', orderMap);
+  Future<int> insertOrder(Order order) async {
+  final db = await database;
+  
+  // Check if the UUID already exists
+  final List<Map<String, dynamic>> result = await db.query(
+    'orders',
+    where: 'uuid = ?',
+    whereArgs: [order.uuid],
+  );
+
+  if (result.isNotEmpty) {
+    // UUID already exists, generate a new one
+    order.uuid = Uuid().v4();
   }
+
+  final orderMap = order.toMap()
+    ..['userPhone'] = _currentUserPhone;
+  return await db.insert('orders', orderMap);
+}
    Future<void> updateOrder(Order order) async {
     final db = await database;
     await db.update(

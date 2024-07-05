@@ -11,6 +11,8 @@ import 'data/synchdatabasehelper.dart';
 import 'homepage.dart';
 import 'analytics.dart';
 
+
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
    
@@ -19,11 +21,11 @@ void main() async {
     print('${record.level.name}: ${record.time}: ${record.message}');
   });
   
-  final dbHelper = DatabaseHelper.instance;
-  await dbHelper.database; // Ensure the database is initialized
+   final dbHelper = DatabaseHelper.instance;
+   await dbHelper.database; // Ensure the database is initialized
 
-  final dataSyncService = DataSyncService();
-  dataSyncService.initialize(dbHelper);
+   final dataSyncService = DataSyncService();
+   dataSyncService.initialize(dbHelper);
 
   runApp(const MyApp());
 }
