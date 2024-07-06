@@ -7,7 +7,7 @@ import 'package:crypto/crypto.dart';
 import '../databasehelper.dart';
 
 class AuthService {
-  final String baseUrl = 'https://87b0-35-195-141-44.ngrok-free.app'; // Replace with your actual API URL
+  final String baseUrl = 'https://6bc6-35-195-141-44.ngrok-free.app'; // Replace with your actual API URL
   final String tokenKey = 'auth_token';
   final String userIdKey = 'user_id';
   final String phoneKey = 'phone_number';

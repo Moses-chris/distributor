@@ -1,25 +1,40 @@
 const Order = require('../models/Order');
+const logger = require('../utils/logger');
 
 exports.createOrder = async (req, res) => {
-  
   try {
     const { uuid, ...orderData } = req.body;
-    
+    logger.info(`Received order sync request for UUID: ${uuid}`);
+
     // Check if an order with this UUID already exists
-    let order = await Order.findOne({ uuid });
-    
-    if (order) {
-      // Update existing order
-      Object.assign(order, orderData);
-      await order.save();
-      res.json(order);
+    let existingOrder = await Order.findOne({ uuid });
+
+    if (existingOrder) {
+      logger.info(`Order with UUID: ${uuid} already exists. Updating...`);
+      // Update only if the incoming data is newer
+      if (orderData.updatedAt && new Date(orderData.updatedAt) > existingOrder.updatedAt) {
+        Object.assign(existingOrder, orderData);
+        await existingOrder.save();
+        logger.info(`Order updated successfully for UUID: ${uuid}`);
+      } else {
+        logger.info(`Existing order is newer or same. Skipping update for UUID: ${uuid}`);
+      }
+      res.json(existingOrder);
     } else {
+      logger.info(`No existing order found for UUID: ${uuid}. Creating new order...`);
       // Create new order
-      order = new Order({ uuid, ...orderData });
-      await order.save();
-      res.status(201).json(order);
+      const newOrder = new Order({ uuid, ...orderData });
+      await newOrder.save();
+      logger.info(`New order created successfully for UUID: ${uuid}`);
+      res.status(201).json(newOrder);
     }
+
+    // Log the total number of orders after this operation
+    const totalOrders = await Order.countDocuments();
+    logger.info(`Total number of orders in the database: ${totalOrders}`);
+
   } catch (error) {
+    logger.error(`Error in createOrder: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 };
@@ -27,8 +42,10 @@ exports.createOrder = async (req, res) => {
 exports.getAllOrders = async (req, res) => {
   try {
     const orders = await Order.find();
+    logger.info(`Retrieved ${orders.length} orders`);
     res.json(orders);
   } catch (error) {
+    logger.error(`Error in getAllOrders: ${error.message}`);
     res.status(500).json({ message: error.message });
   }
 };
@@ -36,19 +53,33 @@ exports.getAllOrders = async (req, res) => {
 exports.getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (!order) {
+      logger.warn(`Order not found for ID: ${req.params.id}`);
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    logger.info(`Retrieved order for ID: ${req.params.id}`);
     res.json(order);
   } catch (error) {
+    logger.error(`Error in getOrderById: ${error.message}`);
     res.status(500).json({ message: error.message });
   }
 };
 
 exports.updateOrder = async (req, res) => {
   try {
-    const updatedOrder = await Order.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!updatedOrder) return res.status(404).json({ message: 'Order not found' });
+    const updatedOrder = await Order.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true, runValidators: true }
+    );
+    if (!updatedOrder) {
+      logger.warn(`Order not found for update, ID: ${req.params.id}`);
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    logger.info(`Order updated successfully, ID: ${req.params.id}`);
     res.json(updatedOrder);
   } catch (error) {
+    logger.error(`Error in updateOrder: ${error.message}`);
     res.status(400).json({ message: error.message });
   }
 };
@@ -56,9 +87,14 @@ exports.updateOrder = async (req, res) => {
 exports.deleteOrder = async (req, res) => {
   try {
     const deletedOrder = await Order.findByIdAndDelete(req.params.id);
-    if (!deletedOrder) return res.status(404).json({ message: 'Order not found' });
+    if (!deletedOrder) {
+      logger.warn(`Order not found for deletion, ID: ${req.params.id}`);
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    logger.info(`Order deleted successfully, ID: ${req.params.id}`);
     res.json({ message: 'Order deleted successfully' });
   } catch (error) {
+    logger.error(`Error in deleteOrder: ${error.message}`);
     res.status(500).json({ message: error.message });
   }
 };
