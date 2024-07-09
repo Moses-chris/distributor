@@ -23,17 +23,14 @@ mongoose.connect(mongoUri, {
   tlsAllowInvalidHostnames: false,
 });
 
-// mongoose.set('strictQuery', true); // Set this to true or false as needed
+
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
 db.once('open', () => console.log('Connected to MongoDB'));
 
-// Routes
-// Orders route (if you have one)
-
 
 app.use('/api/orders', require('./routes/orders'));
-//app.use('/api/orderItems', require('./routes/orderItems'));
+app.use('/api/orderItems', require('./routes/orderitems'));
 //app.use('/api/receipts', require('./routes/receipts'));
 //app.use('/api/payments', require('./routes/payments'));
 

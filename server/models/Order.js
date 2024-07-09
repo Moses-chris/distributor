@@ -6,6 +6,7 @@ const OrderSchema = new mongoose.Schema({
   status: String,
   deliveryDate: Date,
   totalAmount: Number,
+  orderItems: [{ type: mongoose.Schema.Types.ObjectId, ref: 'OrderItem' }]
 });
 
 OrderSchema.index({ uuid: 1 }, { unique: true });
